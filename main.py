@@ -72,6 +72,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
         self.spinBox.setMaximum(7)
         self.max = 400
         self.cost = 10
+        self.penalty = 0
         self.progressBar.setVisible(False)
         self.groupBox.setVisible(False)
         for key in UNITS.keys():
@@ -218,7 +219,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                 if work[apparat['name']][i] is not None:
                     start = i * 2
                     value = work[apparat['name']][i]
-                    while work[apparat['name']][i] == value:
+                    while i < 14 * 24 * 60 and work[apparat['name']][i] == value:
                         i += 1
                     end = i * 2
                     i -= 1
@@ -339,7 +340,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
         self.scene2 = MyScene()
         x = 50
         for j in range(2):
-            for i in range(1,8):
+            for i in range(1, 8):
                 GraphicPixmap = QtWidgets.QGraphicsPixmapItem()
                 GraphicPixmap.setAcceptHoverEvents(True)
                 pixmap = QtGui.QPixmap("days/{}.bmp".format(i))
@@ -356,7 +357,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
         apparatus = self.create_json()
         apparatus = apparatus['independent'] + apparatus['dependent']
         for apparat in apparatus:
-            for i in range(0, 24 * 7 * 60, 5):
+            for i in range(0, 24 * 14 * 60, 5):
                 if work[apparat['name']][i] is not None:
                     value = work[apparat['name']][i]
                     if apparat['operations'][int(value) - 1][self.utility] == '':
@@ -607,6 +608,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                 apparatus = self.create_json()
         except:
            return False, []
+        self.penalty = 0
         work = {}
         for ind in apparatus['independent']:
             work[ind['name']] = 21 * 24 * 60 * [None]
@@ -640,7 +642,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                                 if work[dep_apparat['name']][i_dep + j + minus_time] == dep_operation['№ опер.'] or work[dep_apparat['name']][i_dep + j + minus_time] is None:
                                     work[dep_apparat['name']][i_dep + j + minus_time] = dep_operation['№ опер.']
                                 else:
-                                    return False, []
+                                    self.penalty += 1
                             i_dep += int(dep_operation['Время'])
                     i += int(operation['Время'])
                 cycle += 1
@@ -666,7 +668,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                                 if work[dep_apparat['name']][i_dep + j + minus_time] == dep_operation['№ опер.'] or work[dep_apparat['name']][i_dep + j + minus_time] is None:
                                     work[dep_apparat['name']][i_dep + j + minus_time] = dep_operation['№ опер.']
                                 else:
-                                    return False, []
+                                    self.penalty += 1
                             i_dep += int(dep_operation['Время'])
                         k = work[dep['name']][i]
                         while work[dep['name']][i] == k:
@@ -674,6 +676,8 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                 i += 1
         for key in work.keys():
             work[key] = work[key][7 * 24 * 60:]
+        if self.penalty:
+            return False, work
         return True, work
 
     def create_ciclogarm(self):
@@ -711,7 +715,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                         text = QtWidgets.QGraphicsTextItem()
                         text.setPlainText(value)
                         text.setPos(x + start + 10, y + 10)
-                        while work[apparat['name']][i] == value:
+                        while i < 14 * 24 * 60 and work[apparat['name']][i] == value:
                             i += 1
                         end = i * 2
                         color = QtGui.QColor(apparat['operations'][int(value) - 1]['Цвет опер.'][0],
@@ -738,8 +742,6 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
             apparatus['independent'][i]['operations'][0]['Т пуска(м)'] = minute
         ut = 24 * 14 * 12 * [0]
         param, work = self.check_admissibility(apparatus)
-        if not param:
-            return None
         apparatus = apparatus['independent'] + apparatus['dependent']
         for apparat in apparatus:
             for i in range(0, 24 * 14 * 60, 5):
@@ -748,7 +750,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                     if apparat['operations'][int(value) - 1][utility] == '':
                         continue
                     ut[i // 5] += int(apparat['operations'][int(value) - 1][utility])
-        return max(ut)
+        return max(ut) + self.penalty
 
 
     def optimization(self):
@@ -878,7 +880,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
         for xi in X:
             f.append(self.optmization_func(apparatus, start, xi, utility))
         t = 0
-        while t <= tmax:
+        while t < tmax:
             if not self.run:
                 break
             procent = 100 * t / tmax
@@ -915,8 +917,14 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
             self.label_7.setText("Максимальный пик: {}".format(f[0]))
         minimum = f[0]
         min_times = X[0]
-        for i in range(1, self.apparatus_count1):
-            time = start + min_times[i - 1]
+        min_times.insert(0, 0)
+        min_time = min(min_times)
+        if start + min_time < 0:
+            delta = abs(start + min_time)
+            for i in range(len(min_times)):
+                min_times[i] += delta
+        for i in range(0, self.apparatus_count1):
+            time = start + min_times[i]
             day = time // (24 * 60)
             time -= day * (24 * 60)
             hour = time // 60
