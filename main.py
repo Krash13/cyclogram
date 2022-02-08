@@ -12,6 +12,7 @@ import random
 import numpy as np
 from copy import deepcopy
 
+
 class MyScene(QtWidgets.QGraphicsScene):
 
     def addArrow(self, x1, y1, x2, y2):
@@ -639,6 +640,8 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                             for j in range(int(dep_operation['Время'])):
                                 if i_dep + j + minus_time < 0:
                                     continue
+                                if i_dep + j + minus_time >= 21 * 24 * 60:
+                                    continue
                                 if work[dep_apparat['name']][i_dep + j + minus_time] == dep_operation['№ опер.'] or work[dep_apparat['name']][i_dep + j + minus_time] is None:
                                     work[dep_apparat['name']][i_dep + j + minus_time] = dep_operation['№ опер.']
                                 else:
@@ -750,7 +753,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                     if apparat['operations'][int(value) - 1][utility] == '':
                         continue
                     ut[i // 5] += int(apparat['operations'][int(value) - 1][utility])
-        return max(ut) + self.penalty
+        return max(ut) + self.penalty ** 2
 
 
     def optimization(self):
@@ -865,7 +868,7 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
         apparatus = self.create_json()
         freeze_ap = apparatus['independent'][0]
         start = 24 * 60 * (int(freeze_ap['operations'][0]['День пуск']) - 1) + 60 * int(freeze_ap['operations'][0]['Т пуска(ч)']) + int(freeze_ap['operations'][0]['Т пуска(м)'])
-        min_delta = - start
+        min_delta = - max_delta
         times = (self.apparatus_count1 - 1) * [start]
         X = []
         X.append(times)
@@ -886,15 +889,9 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
             procent = 100 * t / tmax
             self.progressBar_2.setValue(int(procent))
             n = []
-            fbest = my_min(f)
-            fworst = my_max(f)
-            if fbest == fworst:
-                if fbest is not None:
-                    fworst = fbest + 1
+            fbest = min(f)
+            fworst = max(f)
             for fi in f:
-                if fi is None:
-                    n.append(nmin)
-                    continue
                 n.append(
                     round(fi * (nmax - nmin) / (fbest - fworst) + (fbest * nmin - fworst * nmax) / (fbest - fworst)))
             Xnew = []
@@ -904,6 +901,10 @@ class MyApp(QtWidgets.QMainWindow, NIR.Ui_MainWindow):
                     xj = []
                     for j in range(len(X[k])):
                         xj.append(X[k][j] + myround(np.random.normal(0, sigma)))
+                        if xj[j] > Xmax[j]:
+                            xj[j] = Xmax[j]
+                        if xj[j] < Xmin[j]:
+                            xj[j] = Xmin[j]
                     Xnew.append(xj)
             X = X + Xnew
             f = []
